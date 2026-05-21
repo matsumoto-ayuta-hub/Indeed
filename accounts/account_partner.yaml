@@ -1,0 +1,28 @@
+# アカウント3: 提携先企業専用（大規模掲載）
+id: account_partner
+name: キャリアジャパンパートナー採用
+description: |
+  契約提携先企業の求人を最大規模で掲載するアカウント。
+  有料職業紹介事業許可のもと、提携企業から転載許可を得た求人を掲載。
+allow_partner_jobs: true
+allow_own_jobs: false
+max_jobs: 5000
+
+# 掲載可能な雇用形態（null = 制限なし）
+allowed_job_types: null
+
+# Indeed アカウント設定
+indeed_publisher_id: ""
+feed_url_path: /feeds/account_partner.xml
+
+# コンプライアンス設定
+compliance_check_on_create: true
+compliance_check_on_renew: true
+auto_publish_on_compliant: true
+
+# 提携先求人の追加要件
+partner_requirements:
+  - 提携契約書（転載許可）が必須
+  - 求人企業名を必ず明記（匿名不可）
+  - 実際の求人であることの確認が必要
+  - 掲載期間内に求人が充足した場合は速やかに取り下げること

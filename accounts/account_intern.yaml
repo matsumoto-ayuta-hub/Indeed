@@ -1,0 +1,29 @@
+# アカウント2: インターン・小規模採用
+id: account_intern
+name: キャリアジャパンインターン採用
+description: |
+  インターンシップやアルバイト・パートなど、
+  小規模・短期・学生向けの求人専用アカウント。
+allow_partner_jobs: false
+allow_own_jobs: true
+max_jobs: 50
+
+# 掲載可能な雇用形態（このアカウントはインターン・パートのみ）
+allowed_job_types:
+  - internship
+  - parttime
+
+# Indeed アカウント設定
+indeed_publisher_id: ""
+feed_url_path: /feeds/account_intern.xml
+
+# コンプライアンス設定
+compliance_check_on_create: true
+compliance_check_on_renew: true
+auto_publish_on_compliant: true
+
+# インターン特有の追加チェック項目
+extra_compliance_rules:
+  - インターン期間・時間を明記すること
+  - 報酬の有無（有給・無給）を明記すること
+  - 学習内容・スキルアップ要素を記載すること

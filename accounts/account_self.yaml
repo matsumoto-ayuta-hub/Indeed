@@ -1,0 +1,21 @@
+# アカウント1: 自社採用 + 提携先一部掲載
+id: account_self
+name: キャリアジャパン自社採用
+description: |
+  自社の正社員・契約社員採用と、
+  厳選した提携先企業の求人を掲載するアカウント。
+allow_partner_jobs: true
+allow_own_jobs: true
+max_jobs: 500
+
+# 掲載可能な雇用形態（null = 制限なし）
+allowed_job_types: null
+
+# Indeed アカウント設定
+indeed_publisher_id: ""   # IndeedのPublisher IDを設定
+feed_url_path: /feeds/account_self.xml
+
+# コンプライアンス設定
+compliance_check_on_create: true
+compliance_check_on_renew: true
+auto_publish_on_compliant: true
