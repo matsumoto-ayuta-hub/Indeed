@@ -1,31 +1,33 @@
 """
 APScheduler による定期実行タスク。
-- フィード生成（6時間ごと）
-- 有効期限チェック（毎日）
-- 自動更新（毎日）
+- Indeed API への全求人同期（N時間ごと）
+- 有効期限チェック（毎日 0:00）
+- 自動リニュー（毎日 1:00）
 """
+import logging
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 from apscheduler.triggers.cron import CronTrigger
-import logging
 
 from .config import settings
 from .database import SessionLocal
 from .job_manager import JobManager
-from .feed_generator import generate_all_feeds
 
 logger = logging.getLogger(__name__)
 
 
-def task_generate_feeds():
-    logger.info("フィード生成タスク開始")
+def task_sync_to_indeed():
+    logger.info("Indeed API 同期タスク開始")
     db = SessionLocal()
     try:
-        results = generate_all_feeds(db)
-        for account_id, path in results.items():
-            logger.info(f"  {account_id}: {path}")
+        mgr = JobManager(db)
+        result = mgr.sync_all_active()
+        logger.info(
+            f"  同期完了: 新規={result['created']} 更新={result['updated']} "
+            f"エラー={result['errors']}"
+        )
     except Exception as e:
-        logger.error(f"フィード生成エラー: {e}")
+        logger.error(f"Indeed 同期エラー: {e}")
     finally:
         db.close()
 
@@ -36,7 +38,7 @@ def task_expire_jobs():
     try:
         mgr = JobManager(db)
         count = mgr.expire_old_jobs()
-        logger.info(f"  {count}件の求人を期限切れに更新")
+        logger.info(f"  {count}件の求人を期限切れに更新（Indeed 側も取り下げ済み）")
     except Exception as e:
         logger.error(f"有効期限チェックエラー: {e}")
     finally:
@@ -44,16 +46,14 @@ def task_expire_jobs():
 
 
 def task_auto_renew():
-    logger.info("自動更新タスク開始")
+    logger.info("自動リニュータスク開始")
     db = SessionLocal()
     try:
         mgr = JobManager(db)
         renewed = mgr.auto_renew_expiring()
-        logger.info(f"  {len(renewed)}件の求人を自動更新: {renewed}")
-        # 更新後にフィードを再生成
-        generate_all_feeds(db)
+        logger.info(f"  {len(renewed)}件の求人を自動リニュー: {renewed}")
     except Exception as e:
-        logger.error(f"自動更新エラー: {e}")
+        logger.error(f"自動リニューエラー: {e}")
     finally:
         db.close()
 
@@ -61,14 +61,13 @@ def task_auto_renew():
 def create_scheduler() -> BackgroundScheduler:
     scheduler = BackgroundScheduler(timezone="Asia/Tokyo")
 
-    # フィード生成: N時間ごと
+    # Indeed API 同期: N時間ごと
     scheduler.add_job(
-        task_generate_feeds,
-        trigger=IntervalTrigger(hours=settings.feed_refresh_interval_hours),
-        id="generate_feeds",
+        task_sync_to_indeed,
+        trigger=IntervalTrigger(hours=settings.sync_interval_hours),
+        id="sync_to_indeed",
         replace_existing=True,
     )
-
     # 有効期限チェック: 毎日 0:00
     scheduler.add_job(
         task_expire_jobs,
@@ -76,8 +75,7 @@ def create_scheduler() -> BackgroundScheduler:
         id="expire_jobs",
         replace_existing=True,
     )
-
-    # 自動更新: 毎日 1:00
+    # 自動リニュー: 毎日 1:00
     scheduler.add_job(
         task_auto_renew,
         trigger=CronTrigger(hour=1, minute=0),

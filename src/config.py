@@ -1,6 +1,7 @@
 from pydantic_settings import BaseSettings
 from pydantic import Field
-from typing import Literal
+from dataclasses import dataclass
+from typing import Optional
 
 
 class Settings(BaseSettings):
@@ -11,21 +12,29 @@ class Settings(BaseSettings):
 
     database_url: str = Field("sqlite:///./data/indeed_jobs.db", env="DATABASE_URL")
 
-    agency_license_number: str = Field(..., env="AGENCY_LICENSE_NUMBER")
+    agency_license_number: str = Field("13-ユ-318960", env="AGENCY_LICENSE_NUMBER")
     agency_name: str = Field("株式会社キャリアジャパン", env="AGENCY_NAME")
 
-    account1_id: str = Field("account_self", env="ACCOUNT1_ID")
-    account1_publisher_name: str = Field("自社採用", env="ACCOUNT1_PUBLISHER_NAME")
+    # Indeed Partner Console OAuth credentials (per account)
+    account_self_client_id: str = Field("", env="ACCOUNT_SELF_CLIENT_ID")
+    account_self_client_secret: str = Field("", env="ACCOUNT_SELF_CLIENT_SECRET")
+    account_self_publisher_name: str = Field("株式会社キャリアジャパン自社採用", env="ACCOUNT_SELF_PUBLISHER_NAME")
 
-    account2_id: str = Field("account_intern", env="ACCOUNT2_ID")
-    account2_publisher_name: str = Field("インターン採用", env="ACCOUNT2_PUBLISHER_NAME")
+    account_intern_client_id: str = Field("", env="ACCOUNT_INTERN_CLIENT_ID")
+    account_intern_client_secret: str = Field("", env="ACCOUNT_INTERN_CLIENT_SECRET")
+    account_intern_publisher_name: str = Field("キャリアジャパンインターン採用", env="ACCOUNT_INTERN_PUBLISHER_NAME")
 
-    account3_id: str = Field("account_partner", env="ACCOUNT3_ID")
-    account3_publisher_name: str = Field("パートナー採用", env="ACCOUNT3_PUBLISHER_NAME")
+    account_partner_client_id: str = Field("", env="ACCOUNT_PARTNER_CLIENT_ID")
+    account_partner_client_secret: str = Field("", env="ACCOUNT_PARTNER_CLIENT_SECRET")
+    account_partner_publisher_name: str = Field("キャリアジャパンパートナー採用", env="ACCOUNT_PARTNER_PUBLISHER_NAME")
 
-    feed_refresh_interval_hours: int = Field(6, env="FEED_REFRESH_INTERVAL_HOURS")
+    # Indeed API endpoints
+    indeed_token_url: str = Field("https://apis.indeed.com/oauth/v2/tokens", env="INDEED_TOKEN_URL")
+    indeed_graphql_url: str = Field("https://apis.indeed.com/graphql", env="INDEED_GRAPHQL_URL")
+
     job_expiry_days: int = Field(30, env="JOB_EXPIRY_DAYS")
     auto_renew_days_before_expiry: int = Field(5, env="AUTO_RENEW_DAYS_BEFORE_EXPIRY")
+    sync_interval_hours: int = Field(6, env="SYNC_INTERVAL_HOURS")
 
     claude_model: str = "claude-sonnet-4-6"
 
@@ -36,35 +45,58 @@ class Settings(BaseSettings):
 
 settings = Settings()
 
-ACCOUNT_IDS = [
-    settings.account1_id,
-    settings.account2_id,
-    settings.account3_id,
-]
 
-AccountId = Literal["account_self", "account_intern", "account_partner"]
+@dataclass
+class AccountConfig:
+    id: str
+    publisher_name: str
+    client_id: str
+    client_secret: str
+    allow_partner_jobs: bool
+    allow_own_jobs: bool
+    max_jobs: int
+    allowed_job_types: Optional[list]
+    description: str
 
-ACCOUNT_CONFIG = {
-    settings.account1_id: {
-        "name": settings.account1_publisher_name,
-        "allow_partner_jobs": True,
-        "allow_own_jobs": True,
-        "max_jobs": 500,
-        "description": "自社採用 + 提携先一部掲載",
-    },
-    settings.account2_id: {
-        "name": settings.account2_publisher_name,
-        "allow_partner_jobs": False,
-        "allow_own_jobs": True,
-        "max_jobs": 50,
-        "description": "インターン・アルバイト等の小規模採用",
-        "allowed_job_types": ["internship", "parttime"],
-    },
-    settings.account3_id: {
-        "name": settings.account3_publisher_name,
-        "allow_partner_jobs": True,
-        "allow_own_jobs": False,
-        "max_jobs": 5000,
-        "description": "提携先企業専用（大規模掲載）",
-    },
+    @property
+    def has_credentials(self) -> bool:
+        return bool(self.client_id and self.client_secret)
+
+
+ACCOUNT_CONFIG: dict[str, AccountConfig] = {
+    "account_self": AccountConfig(
+        id="account_self",
+        publisher_name=settings.account_self_publisher_name,
+        client_id=settings.account_self_client_id,
+        client_secret=settings.account_self_client_secret,
+        allow_partner_jobs=True,
+        allow_own_jobs=True,
+        max_jobs=500,
+        allowed_job_types=None,
+        description="自社採用 + 提携先一部掲載",
+    ),
+    "account_intern": AccountConfig(
+        id="account_intern",
+        publisher_name=settings.account_intern_publisher_name,
+        client_id=settings.account_intern_client_id,
+        client_secret=settings.account_intern_client_secret,
+        allow_partner_jobs=False,
+        allow_own_jobs=True,
+        max_jobs=50,
+        allowed_job_types=["internship", "parttime"],
+        description="インターン・アルバイト等の小規模採用",
+    ),
+    "account_partner": AccountConfig(
+        id="account_partner",
+        publisher_name=settings.account_partner_publisher_name,
+        client_id=settings.account_partner_client_id,
+        client_secret=settings.account_partner_client_secret,
+        allow_partner_jobs=True,
+        allow_own_jobs=False,
+        max_jobs=5000,
+        allowed_job_types=None,
+        description="提携先企業専用（大規模掲載）",
+    ),
 }
+
+ACCOUNT_IDS = list(ACCOUNT_CONFIG.keys())

@@ -1,23 +1,22 @@
 """
 FastAPI アプリケーション。
-- /feeds/{account_id}.xml  → Indeed がクロールするXMLフィードを配信
-- /api/jobs                → 求人CRUD API
-- /api/accounts            → アカウント情報
-- /api/admin/*             → 管理操作
+- /api/jobs         → 求人 CRUD
+- /api/accounts     → アカウント情報・同期ステータス
+- /api/admin/*      → 管理操作（強制同期・期限チェック等）
 """
 import os
 from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import Optional
-from fastapi import FastAPI, Depends, HTTPException, BackgroundTasks, Query
-from fastapi.responses import FileResponse, JSONResponse
+
+from fastapi import FastAPI, Depends, HTTPException, Query
+from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
 from .config import settings, ACCOUNT_CONFIG, ACCOUNT_IDS
 from .database import init_db, get_db_dep
-from .models import JobCreate, JobStatus, ComplianceStatus
+from .models import Job, JobCreate, JobStatus, ComplianceStatus, SyncLog
 from .job_manager import JobManager
-from .feed_generator import generate_all_feeds, generate_feed_for_account
 from .scheduler import create_scheduler
 
 scheduler = None
@@ -27,7 +26,6 @@ scheduler = None
 async def lifespan(app: FastAPI):
     global scheduler
     init_db()
-    os.makedirs("feeds", exist_ok=True)
     os.makedirs("data", exist_ok=True)
     scheduler = create_scheduler()
     scheduler.start()
@@ -38,50 +36,39 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Indeed Job Sync System",
-    description="Indeed Japan 求人自動管理・転載システム（有料職業紹介事業者向け）",
-    version="1.0.0",
+    description="Indeed Japan 求人自動管理システム（有料職業紹介事業者向け / Job Sync API 対応）",
+    version="2.0.0",
     lifespan=lifespan,
 )
-
-
-# ── フィード配信 ──────────────────────────────────────────────────────────────
-
-@app.get(
-    "/feeds/{account_id}.xml",
-    response_class=FileResponse,
-    tags=["Feeds"],
-    summary="Indeed XML Job Feed",
-)
-async def get_feed(account_id: str):
-    if account_id not in ACCOUNT_IDS:
-        raise HTTPException(404, "アカウントが見つかりません")
-    path = f"feeds/{account_id}.xml"
-    if not os.path.exists(path):
-        raise HTTPException(503, "フィードがまだ生成されていません。/api/admin/feeds/generate を実行してください。")
-    return FileResponse(path, media_type="application/xml; charset=utf-8")
 
 
 # ── アカウント情報 ────────────────────────────────────────────────────────────
 
 @app.get("/api/accounts", tags=["Accounts"])
-async def list_accounts():
-    return [
-        {
+async def list_accounts(db: Session = Depends(get_db_dep)):
+    result = []
+    for aid, cfg in ACCOUNT_CONFIG.items():
+        active_jobs = db.query(Job).filter(
+            Job.status == JobStatus.ACTIVE
+        ).all()
+        active_in_account = sum(1 for j in active_jobs if aid in (j.account_ids or []))
+        result.append({
             "id": aid,
-            "feed_url": f"{settings.app_base_url}/feeds/{aid}.xml",
-            **ACCOUNT_CONFIG[aid],
-        }
-        for aid in ACCOUNT_IDS
-    ]
+            "publisher_name": cfg.publisher_name,
+            "description": cfg.description,
+            "has_credentials": cfg.has_credentials,
+            "allow_partner_jobs": cfg.allow_partner_jobs,
+            "allow_own_jobs": cfg.allow_own_jobs,
+            "max_jobs": cfg.max_jobs,
+            "active_job_count": active_in_account,
+        })
+    return result
 
 
 # ── 求人 CRUD ─────────────────────────────────────────────────────────────────
 
 @app.post("/api/jobs", tags=["Jobs"], status_code=201)
-async def create_job(
-    data: JobCreate,
-    db: Session = Depends(get_db_dep),
-):
+async def create_job(data: JobCreate, db: Session = Depends(get_db_dep)):
     mgr = JobManager(db)
     job = mgr.create_job(data, auto_check=True)
     return {
@@ -90,6 +77,7 @@ async def create_job(
         "status": job.status.value,
         "compliance_status": job.compliance_status.value,
         "compliance_notes": job.compliance_notes,
+        "description_modified": job.description_modified,
     }
 
 
@@ -112,9 +100,10 @@ async def list_jobs(
             "job_type": j.job_type.value if hasattr(j.job_type, "value") else j.job_type,
             "status": j.status.value if hasattr(j.status, "value") else j.status,
             "compliance_status": j.compliance_status.value if hasattr(j.compliance_status, "value") else j.compliance_status,
+            "indeed_posting_ids": j.indeed_posting_ids,
+            "last_sync_at": j.last_sync_at,
+            "sync_errors": j.sync_errors,
             "expires_at": j.expires_at.isoformat() if j.expires_at else None,
-            "prefecture": j.prefecture,
-            "city": j.city,
         }
         for j in jobs
     ]
@@ -122,7 +111,7 @@ async def list_jobs(
 
 @app.get("/api/jobs/{job_id}", tags=["Jobs"])
 async def get_job(job_id: str, db: Session = Depends(get_db_dep)):
-    job = db.query(__import__("src.models", fromlist=["Job"]).Job).filter_by(id=job_id).first()
+    job = db.query(Job).filter_by(id=job_id).first()
     if not job:
         raise HTTPException(404, "求人が見つかりません")
     return {
@@ -134,8 +123,13 @@ async def get_job(job_id: str, db: Session = Depends(get_db_dep)):
         "compliance_notes": job.compliance_notes,
         "status": job.status.value if hasattr(job.status, "value") else job.status,
         "compliance_status": job.compliance_status.value if hasattr(job.compliance_status, "value") else job.compliance_status,
+        "indeed_posting_ids": job.indeed_posting_ids,
+        "last_sync_at": job.last_sync_at,
+        "sync_errors": job.sync_errors,
         "expires_at": job.expires_at.isoformat() if job.expires_at else None,
-        "apply_url": job.apply_url,
+        "has_probationary_period": job.has_probationary_period.value if job.has_probationary_period else None,
+        "social_insurance_suids": job.social_insurance_suids,
+        "work_system_suids": job.work_system_suids,
     }
 
 
@@ -148,7 +142,13 @@ async def publish_job(job_id: str, db: Session = Depends(get_db_dep)):
         raise HTTPException(400, str(e))
     if not job:
         raise HTTPException(404, "求人が見つかりません")
-    return {"id": job.id, "status": job.status.value, "expires_at": job.expires_at.isoformat()}
+    return {
+        "id": job.id,
+        "status": job.status.value,
+        "indeed_posting_ids": job.indeed_posting_ids,
+        "sync_errors": job.sync_errors,
+        "expires_at": job.expires_at.isoformat() if job.expires_at else None,
+    }
 
 
 @app.post("/api/jobs/{job_id}/renew", tags=["Jobs"])
@@ -157,12 +157,24 @@ async def renew_job(job_id: str, db: Session = Depends(get_db_dep)):
     job = mgr.renew(job_id)
     if not job:
         raise HTTPException(404, "求人が見つかりません")
-    return {"id": job.id, "status": job.status.value, "expires_at": job.expires_at.isoformat()}
+    return {
+        "id": job.id,
+        "status": job.status.value,
+        "expires_at": job.expires_at.isoformat() if job.expires_at else None,
+    }
+
+
+@app.post("/api/jobs/{job_id}/expire", tags=["Jobs"])
+async def expire_job(job_id: str, db: Session = Depends(get_db_dep)):
+    mgr = JobManager(db)
+    job = mgr.expire_job(job_id)
+    if not job:
+        raise HTTPException(404, "求人が見つかりません")
+    return {"id": job.id, "status": job.status.value}
 
 
 @app.post("/api/jobs/{job_id}/check", tags=["Jobs"])
 async def recheck_compliance(job_id: str, db: Session = Depends(get_db_dep)):
-    from .models import Job
     job = db.query(Job).filter_by(id=job_id).first()
     if not job:
         raise HTTPException(404, "求人が見つかりません")
@@ -178,19 +190,16 @@ async def recheck_compliance(job_id: str, db: Session = Depends(get_db_dep)):
 
 # ── 管理操作 ──────────────────────────────────────────────────────────────────
 
-@app.post("/api/admin/feeds/generate", tags=["Admin"])
-async def trigger_feed_generation(
-    background_tasks: BackgroundTasks,
+@app.post("/api/admin/sync", tags=["Admin"])
+async def trigger_sync(
     account_id: Optional[str] = Query(None),
     db: Session = Depends(get_db_dep),
 ):
-    if account_id:
-        if account_id not in ACCOUNT_IDS:
-            raise HTTPException(404, "アカウントが見つかりません")
-        path = generate_feed_for_account(account_id, db)
-        return {"account_id": account_id, "path": path}
-    results = generate_all_feeds(db)
-    return results
+    if account_id and account_id not in ACCOUNT_IDS:
+        raise HTTPException(404, "アカウントが見つかりません")
+    mgr = JobManager(db)
+    result = mgr.sync_all_active(account_id=account_id)
+    return result
 
 
 @app.post("/api/admin/expire-check", tags=["Admin"])
@@ -209,26 +218,35 @@ async def trigger_auto_renew(db: Session = Depends(get_db_dep)):
 
 @app.get("/api/admin/status", tags=["Admin"])
 async def system_status(db: Session = Depends(get_db_dep)):
-    from .models import Job
     total = db.query(Job).count()
     active = db.query(Job).filter(Job.status == JobStatus.ACTIVE).count()
     pending = db.query(Job).filter(Job.status == JobStatus.PENDING_REVIEW).count()
     rejected = db.query(Job).filter(Job.status == JobStatus.REJECTED).count()
 
-    feeds = {}
-    for aid in ACCOUNT_IDS:
-        path = f"feeds/{aid}.xml"
-        feeds[aid] = {
-            "exists": os.path.exists(path),
-            "url": f"{settings.app_base_url}/feeds/{aid}.xml",
-            "updated_at": (
-                datetime.utcfromtimestamp(os.path.getmtime(path)).isoformat()
-                if os.path.exists(path) else None
-            ),
-        }
+    last_sync = db.query(SyncLog).order_by(SyncLog.synced_at.desc()).first()
+    accounts = []
+    for aid, cfg in ACCOUNT_CONFIG.items():
+        accounts.append({
+            "id": aid,
+            "has_credentials": cfg.has_credentials,
+            "publisher_name": cfg.publisher_name,
+        })
 
     return {
-        "jobs": {"total": total, "active": active, "pending": pending, "rejected": rejected},
-        "feeds": feeds,
+        "jobs": {
+            "total": total,
+            "active": active,
+            "pending": pending,
+            "rejected": rejected,
+        },
+        "accounts": accounts,
+        "last_sync": {
+            "synced_at": last_sync.synced_at.isoformat() if last_sync else None,
+            "created": last_sync.created_count if last_sync else 0,
+            "updated": last_sync.updated_count if last_sync else 0,
+            "errors": last_sync.error_count if last_sync else 0,
+        },
         "scheduler_running": scheduler is not None and scheduler.running,
+        "agency_license_number": settings.agency_license_number,
+        "agency_name": settings.agency_name,
     }
