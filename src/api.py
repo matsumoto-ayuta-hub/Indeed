@@ -9,15 +9,16 @@ from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import Optional
 
-from fastapi import FastAPI, Depends, HTTPException, Query
+from fastapi import FastAPI, Depends, HTTPException, Query, UploadFile, File, BackgroundTasks
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
 from .config import settings, ACCOUNT_CONFIG, ACCOUNT_IDS
-from .database import init_db, get_db_dep
+from .database import init_db, get_db_dep, SessionLocal
 from .models import Job, JobCreate, JobStatus, ComplianceStatus, SyncLog
 from .job_manager import JobManager
 from .scheduler import create_scheduler
+from .zcareer_importer import import_from_excel
 
 scheduler = None
 
@@ -214,6 +215,45 @@ async def trigger_auto_renew(db: Session = Depends(get_db_dep)):
     mgr = JobManager(db)
     renewed = mgr.auto_renew_expiring()
     return {"renewed_job_ids": renewed, "count": len(renewed)}
+
+
+@app.post("/api/admin/import/zcareer", tags=["Admin"])
+async def import_zcareer(
+    background_tasks: BackgroundTasks,
+    file: UploadFile = File(...),
+    accounts: str = Query("account_partner", description="カンマ区切りのアカウントID"),
+    skip_indeed: bool = Query(False),
+):
+    """Zキャリア エクスポートExcel をアップロードして全自動インポート（バックグラウンド実行）"""
+    import tempfile, shutil
+    account_ids = [a.strip() for a in accounts.split(",") if a.strip() in ACCOUNT_IDS]
+    if not account_ids:
+        raise HTTPException(400, "有効なアカウントIDが指定されていません")
+
+    # 一時ファイルに保存
+    suffix = os.path.splitext(file.filename or "upload")[1] or ".xlsx"
+    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
+    shutil.copyfileobj(file.file, tmp)
+    tmp.close()
+
+    def run_import(path: str, accs: list, sync: bool):
+        db = SessionLocal()
+        try:
+            result = import_from_excel(path, db, account_ids=accs, sync_to_indeed=sync)
+            print(
+                f"[zcareer import] 完了: 新規={result.created} 更新={result.updated} "
+                f"失敗={result.compliance_failed} Indeed同期={result.indeed_synced}"
+            )
+        finally:
+            db.close()
+            os.unlink(path)
+
+    background_tasks.add_task(run_import, tmp.name, account_ids, not skip_indeed)
+    return {
+        "message": "インポートをバックグラウンドで開始しました",
+        "accounts": account_ids,
+        "file": file.filename,
+    }
 
 
 @app.get("/api/admin/status", tags=["Admin"])

@@ -58,6 +58,39 @@ def task_auto_renew():
         db.close()
 
 
+def task_import_zcareer_if_new():
+    """設定されたフォルダに新しい Zキャリアファイルがあれば自動インポートする"""
+    import glob, os
+    watch_dir = os.environ.get("ZCAREER_WATCH_DIR", "")
+    if not watch_dir or not os.path.isdir(watch_dir):
+        return
+
+    pattern = os.path.join(watch_dir, "*.xlsx")
+    files = sorted(glob.glob(pattern), key=os.path.getmtime, reverse=True)
+    if not files:
+        return
+
+    latest = files[0]
+    processed_marker = latest + ".imported"
+    if os.path.exists(processed_marker):
+        return
+
+    logger.info(f"Zキャリア新規ファイルを検出: {latest}")
+    from .zcareer_importer import import_from_excel
+    db = SessionLocal()
+    try:
+        result = import_from_excel(latest, db, account_ids=["account_partner"])
+        logger.info(
+            f"自動インポート完了: 新規={result.created} 更新={result.updated} "
+            f"失敗={result.compliance_failed}"
+        )
+        open(processed_marker, "w").close()
+    except Exception as e:
+        logger.error(f"自動インポートエラー: {e}")
+    finally:
+        db.close()
+
+
 def create_scheduler() -> BackgroundScheduler:
     scheduler = BackgroundScheduler(timezone="Asia/Tokyo")
 
@@ -80,6 +113,14 @@ def create_scheduler() -> BackgroundScheduler:
         task_auto_renew,
         trigger=CronTrigger(hour=1, minute=0),
         id="auto_renew",
+        replace_existing=True,
+    )
+
+    # Zキャリア自動インポート: 毎日 2:00（ZCAREER_WATCH_DIR 設定時のみ有効）
+    scheduler.add_job(
+        task_import_zcareer_if_new,
+        trigger=CronTrigger(hour=2, minute=0),
+        id="zcareer_auto_import",
         replace_existing=True,
     )
 
