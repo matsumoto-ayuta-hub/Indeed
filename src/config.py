@@ -36,6 +36,12 @@ class Settings(BaseSettings):
     auto_renew_days_before_expiry: int = Field(5, env="AUTO_RENEW_DAYS_BEFORE_EXPIRY")
     sync_interval_hours: int = Field(6, env="SYNC_INTERVAL_HOURS")
 
+    # Slack批評ボット設定
+    slack_bot_token: str = Field("", env="SLACK_BOT_TOKEN")
+    slack_signing_secret: str = Field("", env="SLACK_SIGNING_SECRET")
+    slack_critique_channel_id: str = Field("", env="SLACK_CRITIQUE_CHANNEL_ID")
+    araki_ryuki_slack_user_id: str = Field("", env="ARAKI_RYUKI_SLACK_USER_ID")
+
     claude_model: str = "claude-sonnet-4-6"
 
     class Config:

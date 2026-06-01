@@ -3,13 +3,15 @@ FastAPI アプリケーション。
 - /api/jobs         → 求人 CRUD
 - /api/accounts     → アカウント情報・同期ステータス
 - /api/admin/*      → 管理操作（強制同期・期限チェック等）
+- /slack/events     → Slack Events API（動画批評ボット）
 """
+import json
 import os
 from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import Optional
 
-from fastapi import FastAPI, Depends, HTTPException, Query, UploadFile, File, BackgroundTasks
+from fastapi import FastAPI, Depends, HTTPException, Query, Request, UploadFile, File, BackgroundTasks
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
@@ -18,6 +20,7 @@ from .database import init_db, get_db_dep, SessionLocal
 from .models import Job, JobCreate, JobStatus, ComplianceStatus, SyncLog
 from .job_manager import JobManager
 from .scheduler import create_scheduler
+from .slack_critic import SlackCritic
 from .zcareer_importer import import_from_excel
 
 scheduler = None
@@ -254,6 +257,52 @@ async def import_zcareer(
         "accounts": account_ids,
         "file": file.filename,
     }
+
+
+# ── Slack 批評ボット ───────────────────────────────────────────────────────────
+
+@app.post("/slack/events", tags=["Slack"])
+async def slack_events(request: Request, background_tasks: BackgroundTasks):
+    """
+    Slack Events API のエンドポイント。
+    Araki Ryuki さんが動画を送信すると批評案を自動生成してスレッド返信する。
+
+    Slack App の設定:
+      Event Subscriptions → Request URL: https://your-domain.com/slack/events
+      Subscribe to bot events: message.channels, message.groups, message.im
+    """
+    body = await request.body()
+
+    try:
+        data = json.loads(body)
+    except json.JSONDecodeError:
+        raise HTTPException(400, "Invalid JSON")
+
+    # URL確認チャレンジ（Slack App の初回登録時）
+    if data.get("type") == "url_verification":
+        return {"challenge": data["challenge"]}
+
+    # 署名検証（SLACK_SIGNING_SECRET が設定されている場合）
+    if settings.slack_signing_secret:
+        timestamp = request.headers.get("X-Slack-Request-Timestamp", "")
+        signature = request.headers.get("X-Slack-Signature", "")
+        critic = SlackCritic()
+        if not critic.verify_signature(body, timestamp, signature):
+            raise HTTPException(403, "Invalid Slack signature")
+
+    event = data.get("event", {})
+    event_type = event.get("type", "")
+    subtype = event.get("subtype", "")
+
+    # botの自分自身のメッセージには反応しない
+    if event_type == "message" and not subtype and not event.get("bot_id"):
+        background_tasks.add_task(_run_slack_critic, event)
+
+    return {"ok": True}
+
+
+def _run_slack_critic(event: dict) -> None:
+    SlackCritic().handle_video_message(event)
 
 
 @app.get("/api/admin/status", tags=["Admin"])
