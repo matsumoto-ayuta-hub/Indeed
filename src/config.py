@@ -41,6 +41,7 @@ class Settings(BaseSettings):
     slack_signing_secret: str = Field("", env="SLACK_SIGNING_SECRET")
     slack_critique_channel_id: str = Field("", env="SLACK_CRITIQUE_CHANNEL_ID")
     araki_ryuki_slack_user_id: str = Field("", env="ARAKI_RYUKI_SLACK_USER_ID")
+    goshi_reira_slack_user_id: str = Field("", env="GOSHI_REIRA_SLACK_USER_ID")
 
     claude_model: str = "claude-sonnet-4-6"
 

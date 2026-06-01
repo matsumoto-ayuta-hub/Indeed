@@ -195,24 +195,39 @@ class SlackCritic:
         except Exception:
             return False
 
+    # ── 許可ユーザー管理 ───────────────────────────────────────────────────────
+
+    def _allowed_users(self) -> dict[str, str]:
+        """設定済みのユーザーID → 表示名のマッピングを返す。空IDはスキップ。"""
+        mapping: dict[str, str] = {}
+        if settings.araki_ryuki_slack_user_id:
+            mapping[settings.araki_ryuki_slack_user_id] = "Araki Ryuki"
+        if settings.goshi_reira_slack_user_id:
+            mapping[settings.goshi_reira_slack_user_id] = "Goshi Reira"
+        return mapping
+
     # ── メインハンドラ ─────────────────────────────────────────────────────────
 
     def handle_video_message(self, event: dict) -> bool:
         """
-        Araki Ryuki さんからの動画メッセージを受け取り、
+        許可ユーザーからの動画メッセージを受け取り、
         批評案を生成してスレッド返信で投稿する。
         """
         user_id: str = event.get("user", "")
-        # ARAKI_RYUKI_SLACK_USER_ID が設定されている場合はその人のみ処理
-        if settings.araki_ryuki_slack_user_id and user_id != settings.araki_ryuki_slack_user_id:
+        allowed = self._allowed_users()
+
+        # 許可ユーザーが設定されている場合はそのユーザーのみ処理
+        if allowed and user_id not in allowed:
             return False
+
+        sender_name = allowed.get(user_id, "送信者")
 
         video_info = self._build_video_info(event)
         if not video_info:
             return False
 
         critique = self.generate_critique(video_info)
-        header = "*📝 批評案（Araki Ryuki さんの動画より）*\n"
+        header = f"*📝 批評案（{sender_name} さんの動画より）*\n"
         source_channel: str = event.get("channel", settings.slack_critique_channel_id)
         thread_ts: Optional[str] = event.get("ts")
 
