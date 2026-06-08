@@ -1,0 +1,10 @@
+# Cloudflare Pages デプロイ設定
+# `wrangler pages deploy dist` でデプロイ
+# または GitHub連携でgit push時に自動ビルド・公開
+
+name = "suisan-career"
+compatibility_date = "2024-01-01"
+
+[env.production]
+# 本番環境の環境変数はCloudflare Pagesダッシュボードで設定してください
+# 認証情報やAPIキーはここに直書きしないでください

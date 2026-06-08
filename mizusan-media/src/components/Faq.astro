@@ -1,0 +1,52 @@
+---
+export interface FaqItem {
+  q: string;
+  a: string;
+}
+
+export interface Props {
+  items: FaqItem[];
+}
+
+const { items } = Astro.props;
+---
+
+{
+  items.length > 0 && (
+    <section style="margin: 3rem 0;">
+      <h2
+        style="font-size:1.4rem; font-weight:700; margin-bottom:1.5rem; padding-left:0.75rem; border-left:4px solid var(--color-primary); color:var(--color-primary-dark);"
+      >
+        よくある質問
+      </h2>
+      <dl>
+        {items.map(({ q, a }) => (
+          <div
+            style="border:1px solid var(--color-border); border-radius:8px; margin-bottom:0.75rem; overflow:hidden;"
+          >
+            <dt
+              style="background:var(--color-bg-alt); padding:1rem 1.25rem; font-weight:700; font-size:1rem; display:flex; gap:0.75rem; align-items:flex-start;"
+            >
+              <span
+                style="color:var(--color-primary); font-size:1.1rem; flex-shrink:0; font-weight:800;"
+              >
+                Q
+              </span>
+              {q}
+            </dt>
+            <dd
+              style="padding:1rem 1.25rem; margin:0; display:flex; gap:0.75rem; align-items:flex-start;"
+            >
+              <span
+                style="color:var(--color-accent); font-size:1.1rem; flex-shrink:0; font-weight:800;"
+              >
+                A
+              </span>
+              <span>{a}</span>
+            </dd>
+          </div>
+        ))}
+      </dl>
+    </section>
+  )
+}

@@ -1,0 +1,23 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+---
+
+<BaseLayout
+  title="ページが見つかりません (404)"
+  description="お探しのページは存在しないか、移動した可能性があります。"
+  noindex={true}
+>
+  <div
+    style="text-align:center; padding:5rem 1.25rem; max-width:560px; margin:0 auto;"
+  >
+    <p style="font-size:4rem; margin-bottom:1rem;">🐟</p>
+    <h1 style="font-size:2rem; color:var(--color-primary); margin-bottom:1rem;">
+      ページが見つかりません
+    </h1>
+    <p style="color:var(--color-text-muted); margin-bottom:2rem;">
+      お探しのページは存在しないか、移動した可能性があります。<br />
+      URLをご確認のうえ、もう一度お試しください。
+    </p>
+    <a href="/" class="btn btn--primary">トップページへ戻る</a>
+  </div>
+</BaseLayout>

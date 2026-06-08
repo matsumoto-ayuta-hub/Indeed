@@ -1,0 +1,27 @@
+---
+import { getCollection, render } from "astro:content";
+import ArticleLayout from "../../layouts/ArticleLayout.astro";
+
+export async function getStaticPaths() {
+  const articles = await getCollection("articles", (a) => !a.data.draft);
+  return articles.map((article) => ({
+    params: { slug: article.id },
+    props: { article },
+  }));
+}
+
+const { article } = Astro.props;
+const { Content } = await render(article);
+
+// 著者名を解決（authorsコレクションから取得、なければそのまま表示）
+let authorName = article.data.author;
+try {
+  const { getEntry } = await import("astro:content");
+  const authorEntry = await getEntry("authors", article.data.author);
+  if (authorEntry) authorName = authorEntry.data.name;
+} catch {}
+---
+
+<ArticleLayout article={article} authorName={authorName}>
+  <Content />
+</ArticleLayout>

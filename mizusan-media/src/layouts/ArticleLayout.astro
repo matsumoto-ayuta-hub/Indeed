@@ -1,0 +1,161 @@
+---
+import BaseLayout from "./BaseLayout.astro";
+import Breadcrumb from "../components/Breadcrumb.astro";
+import Faq from "../components/Faq.astro";
+import Cta from "../components/Cta.astro";
+import RelatedLinks from "../components/RelatedLinks.astro";
+import type { CollectionEntry } from "astro:content";
+
+export interface Props {
+  article: CollectionEntry<"articles">;
+  authorName: string;
+}
+
+const { article, authorName } = Astro.props;
+const {
+  title,
+  description,
+  pubDate,
+  updatedDate,
+  heroImage,
+  faq,
+  related,
+  cluster,
+  draft,
+} = article.data;
+
+const siteUrl = Astro.site?.toString().replace(/\/$/, "") ?? "";
+const articleUrl = `${siteUrl}/articles/${article.id}`;
+
+const clusterLabel: Record<string, string> = {
+  suisankako: "水産加工",
+  yoshoku: "養殖",
+  ryoshi: "漁師",
+  eigyo: "水産営業",
+};
+
+// Article JSON-LD
+const articleLd = {
+  "@context": "https://schema.org",
+  "@type": "Article",
+  headline: title,
+  description,
+  url: articleUrl,
+  datePublished: pubDate.toISOString(),
+  dateModified: (updatedDate ?? pubDate).toISOString(),
+  author: {
+    "@type": "Person",
+    name: authorName,
+  },
+  publisher: {
+    "@type": "Organization",
+    name: "水産キャリア",
+    logo: {
+      "@type": "ImageObject",
+      url: `${siteUrl}/images/logo.png`,
+    },
+  },
+  ...(heroImage && {
+    image: heroImage.startsWith("http") ? heroImage : `${siteUrl}${heroImage}`,
+  }),
+};
+
+// BreadcrumbList JSON-LD
+const breadcrumbLd = {
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  itemListElement: [
+    { "@type": "ListItem", position: 1, name: "ホーム", item: siteUrl },
+    {
+      "@type": "ListItem",
+      position: 2,
+      name: clusterLabel[cluster],
+      item: `${siteUrl}/category/${cluster}`,
+    },
+    { "@type": "ListItem", position: 3, name: title, item: articleUrl },
+  ],
+};
+
+// FAQPage JSON-LD
+const faqLd =
+  faq.length > 0
+    ? {
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        mainEntity: faq.map(({ q, a }) => ({
+          "@type": "Question",
+          name: q,
+          acceptedAnswer: { "@type": "Answer", text: a },
+        })),
+      }
+    : null;
+
+const jsonLdItems = [articleLd, breadcrumbLd, ...(faqLd ? [faqLd] : [])];
+---
+
+<BaseLayout
+  title={title}
+  description={description}
+  ogImage={heroImage ?? "/images/og-default.png"}
+  ogType="article"
+  canonicalUrl={articleUrl}
+  noindex={draft}
+  jsonLd={jsonLdItems}
+>
+  <Breadcrumb
+    items={[
+      { label: "ホーム", href: "/" },
+      { label: clusterLabel[cluster], href: `/category/${cluster}` },
+      { label: title },
+    ]}
+  />
+
+  <article class="container--narrow" style="padding-top:2rem; padding-bottom:3rem;">
+    <header style="margin-bottom:2rem;">
+      {
+        heroImage && (
+          <img
+            src={heroImage}
+            alt={title}
+            width={860}
+            height={430}
+            style="width:100%; border-radius:8px; margin-bottom:1.5rem;"
+          />
+        )
+      }
+      <div style="margin-bottom:0.75rem;">
+        <span
+          style="display:inline-block; font-size:0.75rem; font-weight:600; color:var(--color-primary); background:rgba(10,92,143,0.08); border-radius:4px; padding:0.2rem 0.5rem;"
+        >
+          {clusterLabel[cluster]}
+        </span>
+      </div>
+      <h1 style="font-size:clamp(1.4rem,3.5vw,2rem); line-height:1.4; margin-bottom:1rem;">
+        {title}
+      </h1>
+      <p style="color:var(--color-text-muted); font-size:0.875rem;">
+        著者：{authorName}
+        <time datetime={pubDate.toISOString()}>
+          公開：{pubDate.toLocaleDateString("ja-JP")}
+        </time>
+        {
+          updatedDate && (
+            <time datetime={updatedDate.toISOString()}>
+              　更新：{updatedDate.toLocaleDateString("ja-JP")}
+            </time>
+          )
+        }
+      </p>
+    </header>
+
+    <div class="article-body">
+      <slot />
+    </div>
+
+    {faq.length > 0 && <Faq items={faq} />}
+
+    <RelatedLinks slugs={related} />
+
+    <Cta context="article-end" />
+  </article>
+</BaseLayout>

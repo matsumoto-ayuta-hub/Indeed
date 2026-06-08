@@ -1,0 +1,51 @@
+---
+import { getCollection } from "astro:content";
+
+export interface Props {
+  slugs: string[];
+}
+
+const { slugs } = Astro.props;
+
+let relatedArticles: { id: string; data: { title: string; cluster: string } }[] = [];
+if (slugs.length > 0) {
+  const all = await getCollection("articles", (a) => !a.data.draft);
+  relatedArticles = all.filter((a) => slugs.includes(a.id));
+}
+
+const clusterLabel: Record<string, string> = {
+  suisankako: "水産加工",
+  yoshoku: "養殖",
+  ryoshi: "漁師",
+  eigyo: "水産営業",
+};
+---
+
+{
+  relatedArticles.length > 0 && (
+    <aside style="margin:3rem 0;">
+      <h2
+        style="font-size:1.2rem; font-weight:700; margin-bottom:1rem; padding-left:0.75rem; border-left:4px solid var(--color-accent);"
+      >
+        関連記事
+      </h2>
+      <ul style="list-style:none; display:flex; flex-direction:column; gap:0.6rem;">
+        {relatedArticles.map((a) => (
+          <li>
+            <a
+              href={`/articles/${a.id}`}
+              style="display:flex; align-items:center; gap:0.75rem; padding:0.75rem 1rem; border:1px solid var(--color-border); border-radius:6px; text-decoration:none; color:var(--color-text); transition:background 0.15s;"
+              onmouseover="this.style.background='var(--color-bg-alt)'"
+              onmouseout="this.style.background=''"
+            >
+              <span style="font-size:0.72rem; font-weight:600; color:var(--color-primary); background:rgba(10,92,143,0.08); border-radius:3px; padding:0.15rem 0.4rem; flex-shrink:0;">
+                {clusterLabel[a.data.cluster]}
+              </span>
+              <span style="font-size:0.925rem; font-weight:600;">{a.data.title}</span>
+            </a>
+          </li>
+        ))}
+      </ul>
+    </aside>
+  )
+}

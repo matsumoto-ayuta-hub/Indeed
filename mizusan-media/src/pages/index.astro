@@ -1,0 +1,167 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import { getCollection } from "astro:content";
+import Cta from "../components/Cta.astro";
+
+const allArticles = await getCollection("articles", (a) => !a.data.draft);
+const latestArticles = allArticles
+  .sort((a, b) => b.data.pubDate.getTime() - a.data.pubDate.getTime())
+  .slice(0, 6);
+
+const pillars = allArticles.filter((a) => a.data.isPillar);
+
+const clusterLabel: Record<string, string> = {
+  suisankako: "水産加工",
+  yoshoku: "養殖",
+  ryoshi: "漁師",
+  eigyo: "水産営業",
+};
+
+const clusters = [
+  {
+    id: "suisankako",
+    label: "水産加工",
+    desc: "水産加工場への転職・未経験からの就職情報",
+    emoji: "🏭",
+  },
+  {
+    id: "yoshoku",
+    label: "養殖",
+    desc: "養殖業への転職・漁業就業支援センター情報",
+    emoji: "🐠",
+  },
+  {
+    id: "ryoshi",
+    label: "漁師",
+    desc: "漁師になる方法・漁業移住支援まとめ",
+    emoji: "⚓",
+  },
+  {
+    id: "eigyo",
+    label: "水産営業",
+    desc: "水産商社・食品メーカー営業の転職情報",
+    emoji: "💼",
+  },
+];
+
+const websiteLd = {
+  "@context": "https://schema.org",
+  "@type": "WebSite",
+  name: "水産キャリア",
+  url: Astro.site?.toString(),
+  potentialAction: {
+    "@type": "SearchAction",
+    target: {
+      "@type": "EntryPoint",
+      urlTemplate: `${Astro.site?.toString()}search?q={search_term_string}`,
+    },
+    "query-input": "required name=search_term_string",
+  },
+};
+---
+
+<BaseLayout
+  title="水産キャリア｜水産業界の転職・就職専門メディア"
+  description="水産加工・養殖・漁師・水産営業への転職を専門家がサポート。未経験OK・キャリア相談無料。水産業界の仕事情報を徹底解説。"
+  jsonLd={websiteLd}
+>
+  <!-- Hero -->
+  <section class="hero-section">
+    <div class="container">
+      <h1>水産業界への転職を<br />プロがサポート</h1>
+      <p>
+        水産加工・養殖・漁師・水産営業。<br />
+        業界専門コンサルタントが、あなたのキャリアを無料でサポートします。
+      </p>
+      <a href="/soudan" class="btn btn--primary" style="font-size:1.1rem;">
+        無料でキャリア相談する →
+      </a>
+    </div>
+  </section>
+
+  <!-- クラスター一覧 -->
+  <section style="padding:3rem 0; background:var(--color-bg-alt);">
+    <div class="container">
+      <h2 style="text-align:center; font-size:1.5rem; margin-bottom:2rem;">
+        職種・分野から探す
+      </h2>
+      <div class="card-grid">
+        {
+          clusters.map((c) => (
+            <a
+              href={`/category/${c.id}`}
+              style="display:block; text-decoration:none; background:#fff; border:1px solid var(--color-border); border-radius:10px; padding:1.5rem; transition:box-shadow 0.2s;"
+              onmouseover="this.style.boxShadow='0 4px 16px rgba(0,0,0,0.1)'"
+              onmouseout="this.style.boxShadow=''"
+            >
+              <div style="font-size:2rem; margin-bottom:0.75rem;">{c.emoji}</div>
+              <h3 style="font-size:1.1rem; color:var(--color-primary); margin-bottom:0.4rem;">
+                {c.label}
+              </h3>
+              <p style="font-size:0.875rem; color:var(--color-text-muted);">{c.desc}</p>
+            </a>
+          ))
+        }
+      </div>
+    </div>
+  </section>
+
+  <!-- ピラー記事 -->
+  {
+    pillars.length > 0 && (
+      <section style="padding:3rem 0;">
+        <div class="container">
+          <h2 style="font-size:1.4rem; margin-bottom:1.5rem;">
+            完全ガイド（ピラーコンテンツ）
+          </h2>
+          <div class="card-grid">
+            {pillars.map((a) => (
+              <div class="card">
+                <div class="card__body">
+                  <span class="card__tag">{clusterLabel[a.data.cluster]}</span>
+                  <h3 class="card__title">
+                    <a href={`/articles/${a.id}`}>{a.data.title}</a>
+                  </h3>
+                  <p style="font-size:0.875rem; color:var(--color-text-muted); margin-top:0.5rem;">
+                    {a.data.description}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  <!-- 最新記事 -->
+  {
+    latestArticles.length > 0 && (
+      <section style="padding:3rem 0; background:var(--color-bg-alt);">
+        <div class="container">
+          <h2 style="font-size:1.4rem; margin-bottom:1.5rem;">最新記事</h2>
+          <div class="card-grid">
+            {latestArticles.map((a) => (
+              <div class="card">
+                <div class="card__body">
+                  <span class="card__tag">{clusterLabel[a.data.cluster]}</span>
+                  <h3 class="card__title">
+                    <a href={`/articles/${a.id}`}>{a.data.title}</a>
+                  </h3>
+                  <p class="card__date">
+                    {a.data.pubDate.toLocaleDateString("ja-JP")}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  <!-- CTA -->
+  <div class="container--narrow">
+    <Cta context="hero" />
+  </div>
+</BaseLayout>

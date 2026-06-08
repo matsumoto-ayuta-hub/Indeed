@@ -1,0 +1,55 @@
+---
+export interface Props {
+  context?: "article-end" | "sidebar" | "hero";
+}
+
+const { context = "article-end" } = Astro.props;
+
+const isSidebar = context === "sidebar";
+---
+
+<aside
+  class={`cta-block cta-block--${context}`}
+  style={`
+    background: linear-gradient(135deg, #0a5c8f 0%, #1a7ab8 100%);
+    color: #fff;
+    border-radius: 12px;
+    padding: ${isSidebar ? "1.25rem" : "2rem"};
+    margin: ${isSidebar ? "0" : "3rem 0"};
+    text-align: center;
+  `}
+>
+  <p style="font-size:0.85rem; opacity:0.85; margin-bottom:0.5rem;">
+    水産業界の転職・就職
+  </p>
+  <p
+    style={`font-size:${isSidebar ? "1.1rem" : "1.4rem"}; font-weight:700; margin-bottom:0.75rem; line-height:1.4;`}
+  >
+    無料キャリア相談<br />受付中
+  </p>
+  <p style="font-size:0.875rem; opacity:0.9; margin-bottom:1.25rem; line-height:1.6;">
+    水産加工・養殖・漁師・水産営業への転職を<br />
+    専門コンサルタントが無料でサポート。
+  </p>
+  <a
+    href="/soudan"
+    style="
+      display:inline-block;
+      background:#e8a020;
+      color:#fff;
+      font-weight:700;
+      padding:0.75rem 2rem;
+      border-radius:6px;
+      text-decoration:none;
+      font-size:1rem;
+      transition:background 0.2s;
+    "
+    onmouseover="this.style.background='#d08f10'"
+    onmouseout="this.style.background='#e8a020'"
+  >
+    今すぐ無料相談する →
+  </a>
+  <p style="font-size:0.75rem; opacity:0.7; margin-top:0.75rem;">
+    完全無料・秘密厳守・いつでも退会可
+  </p>
+</aside>

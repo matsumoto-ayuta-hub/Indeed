@@ -1,0 +1,124 @@
+---
+import "../styles/global.css";
+
+export interface Props {
+  title: string;
+  description?: string;
+  ogImage?: string;
+  ogType?: "website" | "article";
+  canonicalUrl?: string;
+  noindex?: boolean;
+  jsonLd?: object | object[];
+}
+
+const {
+  title,
+  description = "水産業界・水産加工・養殖・漁師・水産営業への転職を専門家がサポート。キャリア相談無料。",
+  ogImage = "/images/og-default.png",
+  ogType = "website",
+  canonicalUrl,
+  noindex = false,
+  jsonLd,
+} = Astro.props;
+
+const siteUrl = Astro.site?.toString().replace(/\/$/, "") ?? "";
+const canonical = canonicalUrl ?? siteUrl + Astro.url.pathname;
+const fullTitle = title.endsWith("水産キャリア") ? title : `${title} | 水産キャリア`;
+const ogImageAbsolute = ogImage.startsWith("http") ? ogImage : siteUrl + ogImage;
+
+const jsonLdArray = jsonLd ? (Array.isArray(jsonLd) ? jsonLd : [jsonLd]) : [];
+
+const organizationLd = {
+  "@context": "https://schema.org",
+  "@type": "Organization",
+  name: "水産キャリア",
+  url: siteUrl,
+  logo: `${siteUrl}/images/logo.png`,
+};
+---
+
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{fullTitle}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonical} />
+    {noindex && <meta name="robots" content="noindex,follow" />}
+
+    <!-- OGP -->
+    <meta property="og:type" content={ogType} />
+    <meta property="og:title" content={fullTitle} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:image" content={ogImageAbsolute} />
+    <meta property="og:site_name" content="水産キャリア" />
+    <meta property="og:locale" content="ja_JP" />
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={fullTitle} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={ogImageAbsolute} />
+
+    <!-- Sitemap -->
+    <link rel="sitemap" href="/sitemap-index.xml" />
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;600;700&display=swap"
+      rel="stylesheet"
+    />
+
+    <!-- JSON-LD: Organization -->
+    <script type="application/ld+json" set:html={JSON.stringify(organizationLd)} />
+
+    <!-- JSON-LD: Page-specific -->
+    {
+      jsonLdArray.map((ld) => (
+        <script type="application/ld+json" set:html={JSON.stringify(ld)} />
+      ))
+    }
+
+    <meta name="generator" content={Astro.generator} />
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="container site-header__inner">
+        <a href="/" class="site-header__logo">🐟 水産キャリア</a>
+        <nav class="site-header__nav">
+          <a href="/category/suisankako">水産加工</a>
+          <a href="/category/yoshoku">養殖</a>
+          <a href="/category/ryoshi">漁師</a>
+          <a href="/category/eigyo">水産営業</a>
+          <a href="/soudan">無料相談</a>
+        </nav>
+      </div>
+    </header>
+
+    <main>
+      <slot />
+    </main>
+
+    <footer class="site-footer">
+      <div class="container">
+        <p>
+          水産キャリアは、水産業界専門の転職・就職支援メディアです。<br />
+          有料職業紹介事業（許可番号：XX-XXXXXX）
+        </p>
+        <nav style="margin-top:1rem; display:flex; gap:1.5rem; flex-wrap:wrap;">
+          <a href="/about">運営者情報</a>
+          <a href="/privacy">プライバシーポリシー</a>
+          <a href="/disclaimer">免責事項</a>
+          <a href="/contact">お問い合わせ</a>
+        </nav>
+        <p class="site-footer__copy">
+          &copy; {new Date().getFullYear()} 水産キャリア All rights reserved.
+        </p>
+      </div>
+    </footer>
+  </body>
+</html>

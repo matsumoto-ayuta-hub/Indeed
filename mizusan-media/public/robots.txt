@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+Disallow: /draft/
+
+Sitemap: https://suisan-career.jp/sitemap-index.xml
