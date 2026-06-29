@@ -3,9 +3,11 @@
  *
  * 変更内容:
  *   - Candidates: 列U (21) に「流入経路」を追加
+ *     流入経路の選択肢: Indeed / KANOA / キャリカミ / リファラル / その他
  *   - README: Slackフォーマットに「流入経路」行を追記
  *   - KANOA シート新規作成
  *   - キャリカミ シート新規作成
+ *   - Channels シート: 「自社」行を追加（分担割合 100%）
  *
  * 実行方法: GASエディタで migrateV5 を選択して「実行」
  */
@@ -25,12 +27,17 @@ function migrateV5() {
 
   _addAcquisitionSourceColumn_(ss);
   _updateReadmeSlackFormat_(ss);
+  _addSelfChannelToChannels_(ss);
   _createKanoaSheet_(ss);
   _createCarikamSheet_(ss);
 
   props.setProperty(MIGRATION_V5_KEY, String(MIGRATION_V5_VALUE));
   SpreadsheetApp.getUi().alert('v5マイグレーション完了');
 }
+
+// ── 流入経路の選択肢 ────────────────────────────────────────────────────────
+// Candidatesシートのドロップダウン・Slackフォーマット説明に使用
+var ACQ_SOURCE_LIST = ['Indeed', 'KANOA', 'キャリカミ', 'リファラル', 'その他'];
 
 // ── Candidates: 流入経路列追加 ──────────────────────────────────────────────
 
@@ -44,6 +51,12 @@ function _addAcquisitionSourceColumn_(ss) {
   var col = headers.length + 1; // 末尾に追加
   sheet.getRange(1, col).setValue('流入経路');
   sheet.getRange(1, col).setFontWeight('bold');
+
+  // データ行にドロップダウン設定
+  var rule = SpreadsheetApp.newDataValidation()
+    .requireValueInList(ACQ_SOURCE_LIST, true)
+    .build();
+  sheet.getRange(2, col, 1000, 1).setDataValidation(rule);
 }
 
 // ── README: Slackフォーマット更新 ───────────────────────────────────────────
@@ -62,13 +75,57 @@ function _updateReadmeSlackFormat_(ss) {
       if (cell.indexOf('【成約報告】') !== -1) {
         var updated = cell.replace(
           '業種（職種）:',
-          '流入経路：Indeed / KANOA / キャリカミ\n業種（職種）:'
+          '流入経路：Indeed / KANOA / キャリカミ / リファラル / その他\n業種（職種）:'
         );
         sheet.getRange(r + 1, c + 1).setValue(updated);
         return;
       }
     }
   }
+}
+
+// ── Channels: 自社行追加 + 分担割合列追加 ────────────────────────────────────
+
+/**
+ * Channelsシートに「自社」行を追加し、「分担割合」列がなければ追加する。
+ *
+ * チャネルごとの分担割合（送客チャネルが得る粗利の割合）:
+ *   自社        : 100% （送客なし、全額自社）
+ *   ゼロタレ    : 既存行のまま（値は手動設定）
+ *   Zキャリア   : 既存行のまま
+ *   オイシル    : 既存行のまま
+ *   EmpowerX    : 既存行のまま
+ */
+function _addSelfChannelToChannels_(ss) {
+  var sheet = ss.getSheetByName('Channels');
+  if (!sheet) return; // Channelsシートが存在しない場合はスキップ
+
+  var lastCol = sheet.getLastColumn();
+  var headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+
+  // 「分担割合」列がなければ末尾に追加
+  var shareCol = headers.indexOf('分担割合') + 1;
+  if (shareCol === 0) {
+    shareCol = lastCol + 1;
+    sheet.getRange(1, shareCol).setValue('分担割合');
+    sheet.getRange(1, shareCol).setFontWeight('bold');
+    // 既存行に % 書式を設定
+    sheet.getRange(2, shareCol, 100, 1).setNumberFormat('0%');
+    // 「自社」以外は空欄のまま（手動入力）
+  }
+
+  // 名称列を特定（A列想定）
+  var lastRow = sheet.getLastRow();
+  if (lastRow > 1) {
+    var names = sheet.getRange(2, 1, lastRow - 1, 1).getValues().map(function(r) { return r[0]; });
+    if (names.indexOf('自社') !== -1) return; // 冪等
+  }
+
+  // 「自社」行を追記
+  var newRow = lastRow + 1;
+  sheet.getRange(newRow, 1).setValue('自社');
+  sheet.getRange(newRow, shareCol).setValue(1); // 100%
+  sheet.getRange(newRow, shareCol).setNumberFormat('0%');
 }
 
 // ── KANOAシート作成 ────────────────────────────────────────────────────────
