@@ -21,7 +21,7 @@ function migrateV5() {
   var current = parseInt(props.getProperty(MIGRATION_V5_KEY) || '0', 10);
 
   if (current >= MIGRATION_V5_VALUE) {
-    SpreadsheetApp.getUi().alert('v5マイグレーション済みです（スキップ）');
+    _alert_('v5マイグレーション済みです（スキップ）');
     return;
   }
 
@@ -32,7 +32,12 @@ function migrateV5() {
   _createCarikamSheet_(ss);
 
   props.setProperty(MIGRATION_V5_KEY, String(MIGRATION_V5_VALUE));
-  SpreadsheetApp.getUi().alert('v5マイグレーション完了');
+  _alert_('v5マイグレーション完了');
+}
+
+function _alert_(msg) {
+  console.log(msg);
+  try { SpreadsheetApp.getUi().alert(msg); } catch (e) { /* トリガー経由では無視 */ }
 }
 
 // ── 流入経路の選択肢 ────────────────────────────────────────────────────────

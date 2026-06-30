@@ -43,7 +43,8 @@ function setupIndeedCostTrigger() {
     .onMonthDay(1)
     .atHour(9)
     .create();
-  SpreadsheetApp.getUi().alert('月次トリガーを登録しました（毎月1日 AM9:00）');
+  console.log('月次トリガーを登録しました（毎月1日 AM9:00）');
+  try { SpreadsheetApp.getUi().alert('月次トリガーを登録しました（毎月1日 AM9:00）'); } catch(e) {}
 }
 
 // ── メイン: Indeed 月次広告費取得 ────────────────────────────────────────
@@ -59,10 +60,9 @@ function fetchIndeedMonthlyCost() {
   var employerId   = props.getProperty('INDEED_EMPLOYER_ID');
 
   if (!clientId || !clientSecret || !employerId) {
-    SpreadsheetApp.getUi().alert(
-      'スクリプトプロパティが未設定です。\n' +
-      'INDEED_CLIENT_ID / INDEED_CLIENT_SECRET / INDEED_EMPLOYER_ID を登録してください。'
-    );
+    var msg = 'スクリプトプロパティが未設定です。\nINDEED_CLIENT_ID / INDEED_CLIENT_SECRET / INDEED_EMPLOYER_ID を登録してください。';
+    console.error(msg);
+    try { SpreadsheetApp.getUi().alert(msg); } catch(e) {}
     return;
   }
 

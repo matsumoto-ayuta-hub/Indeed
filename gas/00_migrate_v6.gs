@@ -24,14 +24,19 @@ function migrateV6() {
   var current = parseInt(props.getProperty(MIGRATION_V6_KEY) || '0', 10);
 
   if (current >= MIGRATION_V6_VALUE) {
-    SpreadsheetApp.getUi().alert('v6マイグレーション済みです（スキップ）');
+    _alertV6_('v6マイグレーション済みです（スキップ）');
     return;
   }
 
   _createAdCostMonthlySheet_(ss);
 
   props.setProperty(MIGRATION_V6_KEY, String(MIGRATION_V6_VALUE));
-  SpreadsheetApp.getUi().alert('v6マイグレーション完了: AdCost_Monthly シートを作成しました');
+  _alertV6_('v6マイグレーション完了: AdCost_Monthly シートを作成しました');
+}
+
+function _alertV6_(msg) {
+  console.log(msg);
+  try { SpreadsheetApp.getUi().alert(msg); } catch (e) { /* トリガー経由では無視 */ }
 }
 
 // ── AdCost_Monthly シート作成 ────────────────────────────────────────────────
