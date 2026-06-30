@@ -165,14 +165,11 @@ function _aggregateCandidates_(ss, period) {
     // 明示的に除外するステータスのみスキップ（辞退・早期離職・返金）
     if (status === '辞退' || status === '早期離職' || status === '返金') return;
 
-    // 流入経路が空の場合はスキップ
-    if (!acqSrc) return;
-
     // 月フィルター
     if (period !== '全期間' && joinYm !== period) return;
 
-    // マスター外の流入経路はスキップ
-    if (!result[acqSrc]) return;
+    // 流入経路が空またはマスター外は「その他」に分類
+    if (!acqSrc || !result[acqSrc]) acqSrc = 'その他';
 
     result[acqSrc].count++;
     result[acqSrc].gross += gross;
@@ -391,6 +388,8 @@ function _calcNetGross_(ss, targetMedia, period, shareMap) {
     var joinYm  = _toYm_(row[DC_JOINING_MONTH - 1]);
 
     if (status === '辞退' || status === '早期離職' || status === '返金') return;
+    // 流入経路が空またはマスター外は「その他」として扱う
+    if (!acqSrc) acqSrc = 'その他';
     if (acqSrc !== targetMedia) return;
     if (period !== '全期間' && joinYm !== period) return;
 
