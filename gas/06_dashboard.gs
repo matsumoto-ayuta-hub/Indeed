@@ -111,6 +111,35 @@ function refreshDashboard() {
 // ── データ集計 ────────────────────────────────────────────────────────────────
 
 /**
+ * 【デバッグ用】Candidates の読み取り状況をログに出力する。
+ * GASエディタで実行して「実行数」タブでログを確認する。
+ */
+function debugCandidates() {
+  var ss    = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(CANDIDATES_SHEET);
+  if (!sheet) { console.log('Candidatesシートが見つかりません'); return; }
+
+  var lastRow = sheet.getLastRow();
+  var lastCol = sheet.getLastColumn();
+  console.log('Candidates: ' + (lastRow - 1) + '行, ' + lastCol + '列');
+  console.log('U列(流入経路)は列番号 ' + DC_ACQ_SOURCE + ' = ' + (lastCol >= DC_ACQ_SOURCE ? '存在する' : '存在しない（migrateV5未実行）'));
+
+  if (lastRow < 2) { console.log('データなし'); return; }
+
+  var readCol = Math.max(lastCol, DC_ACQ_SOURCE);
+  var data = sheet.getRange(2, 1, Math.min(lastRow - 1, 10), readCol).getValues(); // 先頭10行
+
+  data.forEach(function(row, i) {
+    var joinYm  = _toYm_(row[DC_JOINING_MONTH - 1]);
+    var status  = String(row[DC_STATUS - 1]  || '(空)');
+    var channel = String(row[DC_CHANNEL - 1] || '(空)');
+    var acqSrc  = readCol >= DC_ACQ_SOURCE ? String(row[DC_ACQ_SOURCE - 1] || '(空)') : '(列なし)';
+    var gross   = row[DC_GROSS - 1];
+    console.log('行' + (i + 2) + ': 入社月=' + joinYm + ' ステータス=' + status + ' 流入経路=' + acqSrc + ' チャネル=' + channel + ' 粗利=' + gross);
+  });
+}
+
+/**
  * Candidates シートを流入経路でグループ化して集計する。
  * period = "全期間" のときは月フィルターなし。
  *
@@ -123,7 +152,6 @@ function _aggregateCandidates_(ss, period) {
   var sheet = ss.getSheetByName(CANDIDATES_SHEET);
   if (!sheet || sheet.getLastRow() < 2) return result;
 
-  // 列Uまで読む（流入経路）
   var lastRow = sheet.getLastRow();
   var lastCol = Math.max(sheet.getLastColumn(), DC_ACQ_SOURCE);
   var data    = sheet.getRange(2, 1, lastRow - 1, lastCol).getValues();
@@ -134,11 +162,11 @@ function _aggregateCandidates_(ss, period) {
     var gross   = Number(row[DC_GROSS - 1]) || 0;
     var joinYm  = _toYm_(row[DC_JOINING_MONTH - 1]);
 
-    // ステータス「有効」のみ（空欄も有効扱いにする ← データ移行期の救済）
-    if (status !== '' && status !== '有効') return;
+    // 明示的に除外するステータスのみスキップ（辞退・早期離職・返金）
+    if (status === '辞退' || status === '早期離職' || status === '返金') return;
 
     // 流入経路が空の場合はスキップ
-    if (!acqSrc || acqSrc === '') return;
+    if (!acqSrc) return;
 
     // 月フィルター
     if (period !== '全期間' && joinYm !== period) return;
@@ -362,7 +390,7 @@ function _calcNetGross_(ss, targetMedia, period, shareMap) {
     var gross   = Number(row[DC_GROSS - 1]) || 0;
     var joinYm  = _toYm_(row[DC_JOINING_MONTH - 1]);
 
-    if (status !== '' && status !== '有効') return;
+    if (status === '辞退' || status === '早期離職' || status === '返金') return;
     if (acqSrc !== targetMedia) return;
     if (period !== '全期間' && joinYm !== period) return;
 
