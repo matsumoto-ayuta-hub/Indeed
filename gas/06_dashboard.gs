@@ -103,7 +103,7 @@ function refreshDashboard() {
   var shareMap = _buildShareMap_(ss);
 
   // ── 描画 ──
-  _renderTable_(sheet, period, costMap, candidateMap, interviewMap, shareMap);
+  _renderTable_(ss, sheet, period, costMap, candidateMap, interviewMap, shareMap);
 
   console.info('ROI_Dashboard 更新完了（期間: ' + period + '）');
 }
@@ -259,7 +259,7 @@ function _getInterviewCount_(ss, period) {
 
 // ── 描画 ─────────────────────────────────────────────────────────────────────
 
-function _renderTable_(sheet, period, costMap, candidateMap, interviewMap, shareMap) {
+function _renderTable_(ss, sheet, period, costMap, candidateMap, interviewMap, shareMap) {
   // 3行目以降をクリア
   var lastRow = sheet.getLastRow();
   if (lastRow >= 3) sheet.getRange(3, 1, lastRow - 2, 10).clearContent().clearFormat();
