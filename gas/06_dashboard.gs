@@ -25,6 +25,7 @@ var DC_JOINING_MONTH = 2;   // B: 入社月
 var DC_GROSS         = 7;   // G: 粗利
 var DC_STATUS        = 12;  // L: ステータス
 var DC_CHANNEL       = 15;  // O: チャネル
+var DC_REFUND        = 17;  // Q: 返金額
 var DC_ACQ_SOURCE    = 21;  // U: 流入経路（migrateV5 で追加）
 
 // 流入経路マスター
@@ -160,10 +161,11 @@ function _aggregateCandidates_(ss, period) {
     var status  = String(row[DC_STATUS - 1] || '');
     var acqSrc  = String(row[DC_ACQ_SOURCE - 1] || '').trim();
     var gross   = Number(row[DC_GROSS - 1]) || 0;
+    var refund  = Number(row[DC_REFUND - 1]) || 0;
     var joinYm  = _toYm_(row[DC_JOINING_MONTH - 1]);
 
-    // 明示的に除外するステータスのみスキップ（辞退・早期離職・返金）
-    if (status === '辞退' || status === '早期離職' || status === '返金') return;
+    // 辞退は入社なし → 除外。早期離職は入社済みなので成約にカウント（返金分は粗利から減算）
+    if (status === '辞退' || status === '返金') return;
 
     // 月フィルター
     if (period !== '全期間' && joinYm !== period) return;
@@ -172,7 +174,7 @@ function _aggregateCandidates_(ss, period) {
     if (!acqSrc || !result[acqSrc]) acqSrc = 'その他';
 
     result[acqSrc].count++;
-    result[acqSrc].gross += gross;
+    result[acqSrc].gross += (status === '早期離職') ? gross - refund : gross;
   });
 
   return result;
@@ -385,16 +387,17 @@ function _calcNetGross_(ss, targetMedia, period, shareMap) {
     var acqSrc  = String(row[DC_ACQ_SOURCE - 1] || '').trim();
     var channel = String(row[DC_CHANNEL - 1] || '').trim();
     var gross   = Number(row[DC_GROSS - 1]) || 0;
+    var refund  = Number(row[DC_REFUND - 1]) || 0;
     var joinYm  = _toYm_(row[DC_JOINING_MONTH - 1]);
 
-    if (status === '辞退' || status === '早期離職' || status === '返金') return;
-    // 流入経路が空またはマスター外は「その他」として扱う
+    if (status === '辞退' || status === '返金') return;
     if (!acqSrc) acqSrc = 'その他';
     if (acqSrc !== targetMedia) return;
     if (period !== '全期間' && joinYm !== period) return;
 
+    var effectiveGross = (status === '早期離職') ? gross - refund : gross;
     var share = shareMap[channel] !== undefined ? shareMap[channel] : 1;
-    total += gross * share;
+    total += effectiveGross * share;
   });
 
   return Math.round(total);
