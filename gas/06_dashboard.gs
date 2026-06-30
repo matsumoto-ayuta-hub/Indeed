@@ -142,10 +142,10 @@ function _getAdCostForMonth_(ss, ym) {
   var data = sheet.getRange(2, 1, lastRow - 1, 6).getValues();
 
   data.forEach(function(row) {
-    if (String(row[0]) !== ym) return;
-    map['Indeed']     = Number(row[1]) || 0;
-    map['KANOA']      = Number(row[2]) || 0;
-    map['キャリカミ'] = Number(row[3]) || 0;
+    if (_toYm_(row[0]) !== ym) return;
+    map['Indeed']          = Number(row[1]) || 0;
+    map['KANOA']           = Number(row[2]) || 0;
+    map['キャリカミ']      = Number(row[3]) || 0;
     map['Zキャリア媒体費'] = Number(row[4]) || 0;
   });
 
@@ -179,7 +179,7 @@ function _getCandidateData_(ss, ym) {
   var data = candSheet.getRange(2, 1, lastRow - 1, DC_ACQ_SOURCE).getValues();
 
   data.forEach(function(row) {
-    var rowYm    = String(row[DC_JOINING_MONTH - 1]);
+    var rowYm    = _toYm_(row[DC_JOINING_MONTH - 1]);
     var status   = String(row[DC_STATUS - 1]);
     var channel  = String(row[DC_CHANNEL - 1]);
     var acqSrc   = String(row[DC_ACQ_SOURCE - 1]);
@@ -351,6 +351,20 @@ function _renderTable_(sheet, ym, costMap, candidateMap, interviewMap) {
 }
 
 // ── ユーティリティ ────────────────────────────────────────────────────────────
+
+/**
+ * セル値を "yyyy/MM" 文字列に変換する。
+ * Sheetsが日付型で保存している場合も正しく処理する。
+ */
+function _toYm_(val) {
+  if (val instanceof Date) {
+    return Utilities.formatDate(val, Session.getScriptTimeZone(), 'yyyy/MM');
+  }
+  var s = String(val).trim();
+  // "2026/06/01" のような日付文字列も "2026/06" に短縮
+  if (s.match(/^\d{4}\/\d{2}\/\d{2}$/)) return s.substring(0, 7);
+  return s;
+}
 
 function _fmt_(n) {
   return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
