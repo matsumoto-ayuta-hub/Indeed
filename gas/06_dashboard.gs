@@ -103,7 +103,14 @@ function refreshDashboard() {
   var sheet = ss.getSheetByName(DASHBOARD_SHEET_NAME);
   if (!sheet) { setupDashboardSheet(); sheet = ss.getSheetByName(DASHBOARD_SHEET_NAME); }
 
-  var ym = String(sheet.getRange('B1').getValue()).trim();
+  var b1Val = sheet.getRange('B1').getValue();
+  var ym;
+  if (b1Val instanceof Date) {
+    // Sheetsが日付型に変換した場合（例: 2026/06 → Date）
+    ym = Utilities.formatDate(b1Val, Session.getScriptTimeZone(), 'yyyy/MM');
+  } else {
+    ym = String(b1Val).trim();
+  }
   if (!ym.match(/^\d{4}\/\d{2}$/)) {
     _alertDash_('B1の形式が正しくありません。例: 2026/06');
     return;
