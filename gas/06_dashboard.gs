@@ -408,6 +408,8 @@ function _toYm_(val) {
   }
   var s = String(val).trim();
   if (s.match(/^\d{4}\/\d{2}\/\d{2}$/)) return s.substring(0, 7);
+  // "yyyy-MM" or "yyyy-MM-dd" (TEXT関数のyyyy-mm形式) → "yyyy/MM" に正規化
+  if (s.match(/^\d{4}-\d{2}/)) return s.substring(0, 7).replace('-', '/');
   return s;
 }
 
